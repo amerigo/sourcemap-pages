@@ -403,8 +403,8 @@ function label(x) {
   if (n === 0) return "Today";
   return n === 1 ? "1 day left" : `${n} days left`;
 }
-// Worst first: red, then yellow, then gray, then green.
-const RANK = { soon: 0, near: 1, later: 2, live: 3 };
+// Rules in effect come first. Upcoming dates follow, soonest first.
+const RANK = { live: 0, soon: 1, near: 1, later: 1 };
 const visible = x => filter === "all" || x.rule === filter;
 
 function renderHero(generated, fresh) {
