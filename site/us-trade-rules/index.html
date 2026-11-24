@@ -75,8 +75,9 @@ header.site img { width: 180px; height: auto; display: block; }
 .hero .mark { display: inline-block; width: 0.5em; height: 0.5em; border-radius: 50%; margin-right: 0.35em; vertical-align: 0.18em; }
 .hero .actions { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; }
 
-section.block { margin-top: 56px; }
-section.block h2 { font-weight: 700; font-size: 1.35rem; margin: 0 0 4px; }
+section.block { margin-top: 72px; }
+section.block h2 { font-weight: 700; font-size: clamp(1.6rem, 3.2vw, 2rem); line-height: 1.15; margin: 0 0 8px; }
+section.block h2::before { content: ""; display: block; width: 48px; height: 4px; background: var(--focus); margin-bottom: 16px; }
 section.block > p { color: var(--ink-soft); margin: 0 0 20px; max-width: 64ch; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
@@ -103,6 +104,12 @@ section.block > p { color: var(--ink-soft); margin: 0 0 20px; max-width: 64ch; }
 .row .state .dot, .tip .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
 .row .figures { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 24px; font-size: 0.88rem; color: var(--ink-soft); }
 .row .figures a, .desc a, footer.site a { color: inherit; }
+.lrow { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 2px 20px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--rule); font-size: 0.92rem; }
+.lrow:last-of-type { border-bottom: 1px solid var(--rule); }
+.lrow .ldate { color: var(--ink-soft); white-space: nowrap; }
+.lrow a { color: inherit; font-weight: 700; }
+.lrow .lmeta { color: var(--ink-soft); }
+.more { margin-top: 12px; }
 .tag { font-size: 0.8rem; font-weight: 700; color: var(--ink-soft); }
 .new { font-size: 0.75rem; font-weight: 700; color: var(--bg); background: var(--focus); border-radius: 4px; padding: 1px 6px; margin-left: 8px; vertical-align: 0.1em; }
 
@@ -171,6 +178,7 @@ footer.site p { margin: 0 0 10px; }
   .wrap { padding: 24px 16px 40px; }
   .row, .q { grid-template-columns: 1fr; }
   .row .state { text-align: left; }
+  .lrow { grid-template-columns: 1fr; }
   .grid4, form.lead { grid-template-columns: 1fr; }
   header.site .btn { display: none; }
 }
@@ -450,14 +458,22 @@ function renderDates() {
 
 let LOG = SEED;
 function isFresh(e) { return lastVisit && e.added ? e.added > lastVisit : lastVisit && e.date > lastVisit.slice(0, 10); }
+let logOpen = false;
+const LOG_SHORT = 5;
 function renderLog() {
-  const list = LOG.entries.filter(visible).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
-  $("log").innerHTML = list.map(e => `<article class="row">
-      <div><h3><a href="${esc(e.url)}" rel="noopener" style="color:inherit">${esc(e.title)}</a>${isFresh(e) ? '<span class="new">New</span>' : ""}</h3>
-      <p class="desc">${esc(e.summary || "")}</p></div>
-      <div class="state t-later">${esc(fmt(e.date))}</div>
-      <div class="figures"><span>${esc(e.type || "Document")}</span><span class="tag">${esc(RULE[e.rule] ? RULE[e.rule].short : "")}</span></div>
-    </article>`).join("") || `<p class="notice">No documents for this rule yet.</p>`;
+  const all = LOG.entries.filter(visible).sort((a, b) => b.date.localeCompare(a.date));
+  const list = logOpen ? all : all.slice(0, LOG_SHORT);
+  const rows = list.map(e => {
+    const meta = [e.type, e.summary].filter(Boolean).join(". ").replace(/\.\.$/, ".");
+    return `<article class="lrow">
+      <span class="ldate">${esc(fmt(e.date))}</span>
+      <span><a href="${esc(e.url)}" rel="noopener">${esc(e.title)}</a>${isFresh(e) ? '<span class="new">New</span>' : ""} <span class="lmeta">${esc(meta)}</span></span>
+      <span class="tag">${esc(RULE[e.rule] ? RULE[e.rule].short : "")}</span>
+    </article>`;
+  }).join("");
+  const more = all.length > LOG_SHORT
+    ? `<button class="chip more" type="button" id="log-more" aria-expanded="${logOpen}">${logOpen ? "Show fewer" : `Show all ${all.length}`}</button>` : "";
+  $("log").innerHTML = rows ? rows + more : `<p class="notice">No documents for this rule yet.</p>`;
 }
 
 function renderRules() {
@@ -539,6 +555,10 @@ $("filters").addEventListener("click", e => {
   const b = e.target.closest("[data-f]");
   if (!b) return;
   filter = b.dataset.f; renderFilters(); renderDates(); renderLog();
+});
+$("log").addEventListener("click", e => {
+  if (!e.target.closest("#log-more")) return;
+  logOpen = !logOpen; renderLog();
 });
 $("check").addEventListener("click", e => {
   const b = e.target.closest("[data-q]");
