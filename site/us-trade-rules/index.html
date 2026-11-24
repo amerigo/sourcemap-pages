@@ -266,9 +266,15 @@ footer.site p { margin: 0 0 10px; }
 </div>
 
 <script>
-// Settings. Paste the Apps Script web app URL into LEAD_ENDPOINT to turn the form on.
+// Settings. The lead form sends each request to a Google Form, which saves it to a sheet in Drive.
+// FORM_FIELDS maps each field on this page to the matching question in that form.
 const CONFIG = {
-  LEAD_ENDPOINT: "",
+  LEAD_ENDPOINT: "https://docs.google.com/forms/d/e/1FAIpQLSdaaMzG6w41Gdw0E1lulXqEZCd7qa4PC3qNEICF9CCx7b4FXQ/formResponse",
+  FORM_FIELDS: {
+    name: "entry.1908064722", email: "entry.514159524", company: "entry.1492191937",
+    role: "entry.435172543", rules: "entry.599431733", message: "entry.772619566",
+    check: "entry.789080800", page: "entry.2097769473", referrer: "entry.992871004",
+  },
   DEMO_URL: "https://sourcemap.com/demo",
   UPDATES_URL: "updates.json",
 };
@@ -548,8 +554,7 @@ $("lead").addEventListener("submit", async e => {
   }
   const payload = {
     name: data.get("name"), email, company: data.get("company"), role: data.get("role"),
-    rules: data.getAll("rules").map(id => RULE[id].short), message: data.get("message"),
-    website: data.get("website"),
+    rules: data.getAll("rules").map(id => RULE[id].short).join(", "), message: data.get("message"),
     check: QUESTIONS.filter(q => answers[q.id]).map(q => `${q.id}: ${answers[q.id]}`).join("; "),
     page: location.href, referrer: document.referrer,
   };
@@ -560,8 +565,13 @@ $("lead").addEventListener("submit", async e => {
   const btn = f.querySelector("button[type=submit]");
   btn.disabled = true; msg.textContent = "Sending.";
   try {
-    // Apps Script web apps do not answer preflight requests, so the body is sent as plain text.
-    await fetch(CONFIG.LEAD_ENDPOINT, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
+    // The "website" field is hidden from people. Only automated senders fill it in, and those are dropped.
+    if (!data.get("website")) {
+      const body = new URLSearchParams();
+      for (const [key, entry] of Object.entries(CONFIG.FORM_FIELDS)) body.append(entry, String(payload[key] || "").slice(0, 2000));
+      // Google Forms does not answer cross-site checks, so the page cannot read the reply.
+      await fetch(CONFIG.LEAD_ENDPOINT, { method: "POST", mode: "no-cors", body });
+    }
     f.reset();
     msg.textContent = "Thank you. A member of the Sourcemap team will reply by email.";
   } catch (err) {
