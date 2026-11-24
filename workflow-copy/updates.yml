@@ -1,0 +1,58 @@
+name: Publish pages and refresh rule updates
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 11 * * *"   # Daily at 11:17 UTC. GitHub may start scheduled runs late.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sourcemap-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore the previous update list
+        # Kept on its own branch so each entry remembers the day it first appeared.
+        run: |
+          git fetch origin updates-data --depth=1 || true
+          git show origin/updates-data:updates.json > site/us-trade-rules/updates.json 2>/dev/null || rm -f site/us-trade-rules/updates.json
+
+      - name: Fetch Federal Register documents
+        run: python scripts/fetch_updates.py site/us-trade-rules/updates.json
+
+      - name: Save the update list
+        run: |
+          cp site/us-trade-rules/updates.json /tmp/updates.json
+          git config user.name "sourcemap-pages"
+          git config user.email "sourcemap-pages@users.noreply.github.com"
+          git checkout --orphan updates-data-new
+          git rm -rf --cached . > /dev/null
+          cp /tmp/updates.json updates.json
+          git add -f updates.json
+          git commit -m "Rule updates $(date -u +%Y-%m-%d)" > /dev/null
+          git push --force origin HEAD:updates-data
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
