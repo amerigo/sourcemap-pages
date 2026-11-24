@@ -26,7 +26,10 @@ WATCHES = [
     {"rule": "cbp", "term": '"Executive Order 14411"', "agency": "u-s-customs-and-border-protection"},
     {"rule": "eo14411", "term": '"Executive Order 14411"'},
     {"rule": "eo14415", "term": '"Executive Order 14415"'},
-    {"rule": "fcc", "term": '"Covered List" "equipment authorization"', "agency": "federal-communications-commission"},
+    # The FCC search matches full text, so unrelated documents come back. title_any keeps
+    # only documents whose title has one of these phrases.
+    {"rule": "fcc", "term": '"Covered List" "equipment authorization"', "agency": "federal-communications-commission",
+     "title_any": ["Covered", "Communications Supply Chain", "Importation and Marketing"]},
 ]
 
 TYPES = {"Rule": "Rule", "Proposed Rule": "Proposed rule", "Notice": "Notice",
@@ -48,7 +51,11 @@ def search(watch):
     url = API + "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"User-Agent": "sourcemap-pages"})
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.load(resp).get("results") or []
+        docs = json.load(resp).get("results") or []
+    wanted = watch.get("title_any")
+    if wanted:
+        docs = [d for d in docs if any(w.lower() in d["title"].lower() for w in wanted)]
+    return docs
 
 
 def to_entry(doc, rule, today):
